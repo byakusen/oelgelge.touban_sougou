@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>当番・宿題チェック</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+
+    <style>
+        /* 基本設定 */
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f3f4f6;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #333;
+            overflow-y: auto;
+        }
+
+        /* グラスモーフィズム */
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        /* UI要素 */
+        .tab-btn { transition: all 0.3s ease; opacity: 0.7; }
+        .tab-btn.active { opacity: 1; background-color: rgba(255, 255, 255, 0.2); font-weight: 800; border-bottom: 3px solid #6366f1; }
+
+        :root {
+            --card-padding: 1.25rem;
+            --name-size: 1.25rem; 
+            --role-size: 0.75rem; 
+            --icon-box-size: 9rem; 
+            --icon-font-size: 5rem; 
+            --btn-font: 1rem; 
+            --btn-pad-y: 0.75rem;
+        }
+
+        /* レスポンシブレイアウト */
+        .layout-normal { --card-padding: 0.85rem; --name-size: 1.125rem; --role-size: 0.7rem; --icon-box-size: 7rem; --icon-font-size: 4rem; --btn-font: 0.875rem; --btn-pad-y: 0.5rem; }
+        .layout-compact { --card-padding: 0.65rem; --name-size: 1rem; --role-size: 0.65rem; --icon-box-size: 5rem; --icon-font-size: 2.5rem; --btn-font: 0.75rem; --btn-pad-y: 0.35rem; }
+        .layout-tiny { --card-padding: 0.5rem; --name-size: 0.875rem; --role-size: 0.6rem; --icon-box-size: 3.5rem; --icon-font-size: 2rem; --btn-font: 0.7rem; --btn-pad-y: 0.25rem; }
+
+        .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding: var(--card-padding); }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15); }
+        .card.absent { opacity: 0.7; background: rgba(240, 240, 240, 0.9); border: 2px dashed #ccc; }
+        .card.absent .card-icon-box { filter: grayscale(100%); opacity: 0.5; }
+
+        .card-icon-box { width: var(--icon-box-size); height: var(--icon-box-size); font-size: var(--icon-font-size); background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .card-btn { font-size: var(--btn-font); padding-top: var(--btn-pad-y); padding-bottom: var(--btn-pad-y); }
+
+        .img-container { transition: all 0.3s ease; border: 4px solid transparent; }
+        .img-container.completed { border-color: #22c55e; background-color: #f0fdf4; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
+        .img-container.locked { background-color: #f3f4f6; color: #d1d5db; }
+        .img-container.rare-effect { animation: sparkle 2s infinite alternate; border-color: #ffd700 !important; background-color: #fffbeb !important; box-shadow: 0 0 15px rgba(255, 215, 0, 0.6) !important; }
+
+        /* アニメーション */
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        .animate-pop { animation: pop 0.3s ease-in-out; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0px); } }
+        .floating { animation: float 3s ease-in-out infinite; }
+        @keyframes sparkle { 0% { filter: drop-shadow(0 0 2px gold) brightness(1); } 50% { filter: drop-shadow(0 0 8px gold) brightness(1.2); } 100% { filter: drop-shadow(0 0 2px gold) brightness(1); } }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-content { animation: fadeIn 0.2s ease-out; }
+        @keyframes bonusPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+        .bonus-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.95); padding: 2rem 3rem; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); text-align: center; z-index: 100; border: 4px solid #fbbf24; animation: bonusPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; pointer-events: none; }
+        .warning-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.95); padding: 2rem 3rem; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); text-align: center; z-index: 100; border: 4px solid #ef4444; color: #dc2626; font-weight: bold; font-size: 1.5rem; animation: bonusPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; pointer-events: none; white-space: nowrap; }
+
+        /* ボス演出 */
+        @keyframes shake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
+        .boss-damage { animation: shake 0.5s; filter: sepia(1) hue-rotate(-50deg) saturate(3); }
+        @keyframes damageTextUp { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -30px); } }
+        .damage-popup { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); color: #ef4444; font-size: 2rem; font-weight: 900; text-shadow: 2px 2px 0px white; animation: damageTextUp 0.8s ease-out forwards; pointer-events: none; z-index: 50; }
+
+        /* テーブル */
+        .settings-table { table-layout: fixed; }
+        .settings-table th, .settings-table td { border: 1px solid #e5e7eb; word-break: break-all; }
+        .settings-table input, .settings-table select { width: 100%; padding: 4px 6px; background: transparent; outline: none; border-radius: 4px; min-width: 0; box-sizing: border-box; font-size: 0.875rem; }
+        .settings-table input:focus, .settings-table select:focus { background-color: #f0f9ff; }
+
+        /* カレンダー */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.8rem; position: relative; }
+        .day-mark { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 1.2rem; line-height: 1; }
+
+        /* その他 */
+        #teacherModeBar { background: repeating-linear-gradient(45deg, #fcd34d, #fcd34d 10px, #fbbf24 10px, #fbbf24 20px); }
+        .stamp-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); width: 80%; height: 80%; background-image: url('https://github.com/byakusen/hanamaru/blob/main/hanamaru2.png?raw=true'); background-size: contain; background-repeat: no-repeat; background-position: center; opacity: 0.9; z-index: 10; pointer-events: none; animation: stampPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes stampPop { 0% { transform: translate(-50%, -50%) scale(2) rotate(0deg); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1) rotate(-15deg); opacity: 0.9; } }
+
+        /* 印刷用スタイル */
+        @media print {
+            body { background: white; color: black; -webkit-print-color-adjust: exact; }
+            .no-print, nav, footer, #bossArea, #teacherModeBar { display: none !important; }
+            #view-settings { display: none !important; }
+            #view-check { display: block !important; }
+            #gridContainer { display: grid !important; grid-template-columns: repeat(5, 1fr) !important; gap: 10px !important; }
+            .card { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; padding: 5px; }
+            .card-btn { display: none !important; }
+            .img-container { border: none !important; width: 60px !important; height: 60px !important; }
+            .card-icon-box { font-size: 2.5rem !important; }
+            .card-name { font-size: 10px !important; }
+        }
+
+        * { -webkit-tap-highlight-color: transparent; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="flex flex-col items-center py-2 px-2 md:px-4 relative">
+
+    <!-- 先生モード中の表示バー -->
+    <div id="teacherModeBar" class="w-full fixed top-0 left-0 z-50 flex justify-between items-center px-4 py-1 shadow-md hidden no-print">
+        <span class="font-bold text-gray-800 text-sm">👨‍🏫 先生モード中</span>
+        <button onclick="exitTeacherMode()" class="bg-white text-xs px-2 py-1 rounded border border-gray-400 hover:bg-gray-100 font-bold">終了</button>
+    </div>
+
+    <!-- ナビゲーション -->
+    <nav id="mainNav" class="w-full max-w-7xl flex justify-start mb-2 px-1 transition-all no-print">
+        <div class="glass rounded-lg flex overflow-hidden scale-90 origin-left">
+            <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-4 py-1.5 text-indigo-900 font-bold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                名簿設定 <span class="text-xs ml-1 opacity-70">🔒</span>
+            </button>
+            <button onclick="switchTab('check')" id="tab-check" class="tab-btn active px-4 py-1.5 text-indigo-900 font-bold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" /></svg>
+                チェック
+            </button>
+        </div>
+    </nav>
+
+    <!-- メインビュー: チェック画面 -->
+    <div id="view-check" class="w-full flex flex-col items-center flex-1 min-h-0">
+        
+        <!-- ボスバトル & クラス合計エリア -->
+        <div id="bossArea" class="w-full max-w-5xl mb-4 glass rounded-xl p-3 md:p-4 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden transition-all bg-white/80">
+            <div class="absolute inset-0 opacity-10 bg-gradient-to-r from-red-500 to-indigo-600 z-0 pointer-events-none"></div>
+            
+            <div class="z-10 flex flex-row md:flex-col items-center gap-4 md:gap-1 md:items-start text-indigo-900 flex-shrink-0">
+                <div class="text-xs md:text-sm font-bold opacity-70">クラス合計レベル</div>
+                <div class="text-3xl md:text-4xl font-extrabold flex items-end gap-1">
+                    <span id="displayClassLevel">0</span>
+                    <span class="text-sm md:text-lg mb-1">Lv</span>
+                </div>
+                <div class="text-[10px] md:text-xs font-bold mt-0 md:mt-1 bg-white/60 px-2 py-1 rounded-full border border-indigo-100">
+                    次の目標: <span id="nextClassLevelTarget">100</span>Lv
+                </div>
+            </div>
+
+            <div class="z-10 flex-1 w-full px-2 flex flex-col items-center">
+                <div class="flex items-center gap-2 mb-1 w-full justify-center">
+                    <span class="text-[10px] font-bold bg-red-600 text-white px-2 py-0.5 rounded shadow-sm">BOSS</span>
+                    <span id="bossName" class="font-bold text-gray-700 text-sm md:text-base truncate">宿題スライム Lv.1</span>
+                    <button onclick="openBossBook()" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-0.5 rounded border border-gray-400 no-print" title="討伐図鑑">📖</button>
+                </div>
+                <div class="w-full h-5 md:h-6 bg-gray-200 rounded-full overflow-hidden shadow-inner relative border border-gray-300">
+                    <div id="bossHpBar" class="h-full bg-gradient-to-r from-red-500 to-orange-500 transition-all duration-500" style="width: 100%"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md">
+                        HP: <span id="bossHpText">--/--</span>
+                    </div>
+                </div>
+                <div class="text-[10px] text-gray-500 mt-1">みんなでチェックしてダメージを与えよう！</div>
+            </div>
+
+            <div class="z-10 relative flex-shrink-0">
+                <img id="bossImage" src="" alt="Boss" class="w-20 h-20 md:w-24 md:h-24 object-contain filter drop-shadow-xl transition-transform cursor-pointer hover:scale-110">
+            </div>
+        </div>
+
+        <!-- ヘッダーエリア -->
+        <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-4 w-full max-w-5xl no-print">
+            <h1 class="text-xl md:text-2xl font-extrabold text-white drop-shadow-md tracking-wider whitespace-nowrap">
+                ✨ 当番・宿題チェック ✨
+            </h1>
+            
+            <div class="glass rounded-full px-4 py-1.5 flex items-center justify-between gap-4 shadow-lg scale-90 md:scale-100">
+                <button onclick="changeDate(-1)" class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition shadow-md btn-check">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                </button>
+                <div class="flex items-center gap-2 text-lg font-bold text-gray-800">
+                    <span id="displayDate">--/--/--</span>
+                    <button onclick="toggleAllAbsent()" id="btnAllAbsent" class="ml-2 text-xs px-3 py-1 rounded-full border border-gray-400 text-gray-500 hover:bg-gray-100 transition shadow-sm bg-white font-bold" title="この日の全員を休みにします">
+                        一括休
+                    </button>
+                </div>
+                <button onclick="changeDate(1)" class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition shadow-md btn-check">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- メイングリッド (生徒カード) -->
+        <div id="gridContainer" class="w-full max-w-[95%] mb-12">
+            <!-- JSで動的にクラスとカードを生成 -->
+        </div>
+    </div>
+
+    <!-- 設定ビュー: 名簿編集画面 -->
+    <div id="view-settings" class="w-full flex flex-col items-center hidden max-w-4xl pb-12">
+        <header class="mb-6 text-center no-print">
+            <h2 class="text-2xl font-bold text-white drop-shadow-md">📋 名簿と係の設定</h2>
+            <p class="text-white/90 text-sm mt-2">※ この画面は先生のみが操作できます</p>
+        </header>
+
+        <!-- 設定エリア（上部） -->
+        <div class="glass w-full rounded-2xl p-4 md:p-6 mb-6 flex flex-col gap-4 no-print">
+            <div>
+                <h3 class="font-bold text-gray-800 border-b pb-2 mb-2">📅 学期の切り替え</h3>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <label class="text-sm font-bold text-gray-600">表示する学期:</label>
+                    <select id="termSelect" onchange="changeTerm(this.value)" class="p-2 border rounded bg-white cursor-pointer font-bold">
+                        <option value="term1">1学期</option>
+                        <option value="term2">2学期</option>
+                        <option value="term3">3学期</option>
+                    </select>
+                    <span class="text-xs text-gray-500">※ 学期ごとに記録・ポイントは別々に管理されます</span>
+                </div>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-800 border-b pb-2 mb-2">👾 ボスバトルの設定</h3>
+                <div class="flex items-center gap-4 flex-wrap">
+                    <label class="text-sm font-bold text-gray-600">モンスター1体のHP:</label>
+                    <input type="number" id="bossHpInput" class="p-2 border rounded text-center w-24 bg-white" value="300" onchange="saveBossHp()">
+                    <span class="text-xs text-gray-500">※ 学級人数に応じて調整してください (推奨: 人数×10程度)</span>
+                </div>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-800 border-b pb-2 mb-2">🔐 パスワード設定</h3>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <input type="text" id="newPasswordInput" placeholder="新しいパスワード" class="p-2 border rounded text-center w-40 bg-white">
+                    <button onclick="saveNewPassword()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 font-bold shadow-sm">変更する</button>
+                </div>
+            </div>
+             <div>
+                <h3 class="font-bold text-gray-800 border-b pb-2 mb-2">💾 データ管理・印刷・リセット</h3>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="printSheet()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold shadow-sm flex items-center gap-2">
+                        🖨️ 掲示用に印刷
+                    </button>
+                    <button onclick="downloadBackup()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-bold shadow-sm flex items-center gap-2">
+                        ⬇️ バックアップ保存
+                    </button>
+                    <label class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 font-bold shadow-sm cursor-pointer flex items-center gap-2">
+                        ⬆️ 復元（読み込み）
+                        <input type="file" accept=".json" class="hidden" onchange="loadBackup(this)">
+                    </label>
+                    <button onclick="resetAllData()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-bold shadow-sm flex items-center gap-2">
+                        🗑️ 全データリセット
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass w-full rounded-2xl p-4 md:p-8 overflow-hidden mb-8 no-print">
+            <div class="max-h-[60vh] overflow-y-auto">
+                <table class="settings-table w-full text-left border-collapse bg-white rounded-lg shadow-sm table-fixed">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-indigo-100 text-indigo-900 shadow-sm">
+                            <th class="p-2 text-center font-bold" style="width: 8%;">順序</th>
+                            <th class="p-2 text-center font-bold" style="width: 6%;">No.</th>
+                            <th class="p-2 font-bold" style="width: 25%;">名前 <span class="text-xs font-normal text-gray-500">(必須)</span></th>
+                            <th class="p-2 font-bold" style="width: 18%;">選択</th>
+                            <th class="p-2 font-bold" style="width: 25%;">係・当番名 <span class="text-xs font-normal text-gray-500">(任意)</span></th>
+                            <th class="p-2 text-center font-bold" style="width: 18%;">今のポイント</th>
+                        </tr>
+                    </thead>
+                    <tbody id="settingsTableBody">
+                        <!-- JSで生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- カレンダーモーダル -->
+    <div id="calendarModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden backdrop-blur-sm no-print" onclick="closeCalendarOutside(event)">
+        <div class="modal-content glass bg-white/95 rounded-2xl w-[90%] max-w-lg p-6 relative shadow-2xl">
+            <button onclick="closeCalendar()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div class="text-center mb-6">
+                <h3 id="calStudentName" class="text-xl font-bold text-indigo-900 mb-2">--さんの記録</h3>
+                <div class="flex items-center justify-center gap-4">
+                    <button onclick="changeCalendarMonth(-1)" class="p-1 rounded-full hover:bg-gray-100 text-indigo-600">◀</button>
+                    <span id="calDateLabel" class="text-lg font-bold text-gray-700 min-w-[8rem]">--年 --月</span>
+                    <button onclick="changeCalendarMonth(1)" class="p-1 rounded-full hover:bg-gray-100 text-indigo-600">▶</button>
+                </div>
+            </div>
+            <!-- 実績リスト表示エリア -->
+            <div id="achievementList" class="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200 hidden">
+                <h4 class="text-xs font-bold text-yellow-800 mb-2">🏆 獲得した称号</h4>
+                <div id="achievementIcons" class="flex flex-wrap gap-2 text-2xl justify-center"></div>
+            </div>
+
+            <div class="calendar-grid mb-2">
+                <div class="text-center text-xs font-bold text-red-500">日</div>
+                <div class="text-center text-xs font-bold text-gray-500">月</div>
+                <div class="text-center text-xs font-bold text-gray-500">火</div>
+                <div class="text-center text-xs font-bold text-gray-500">水</div>
+                <div class="text-center text-xs font-bold text-gray-500">木</div>
+                <div class="text-center text-xs font-bold text-gray-500">金</div>
+                <div class="text-center text-xs font-bold text-blue-500">土</div>
+            </div>
+            <div id="calGrid" class="calendar-grid"></div>
+            <div class="mt-4 flex justify-center gap-4 text-xs text-gray-500">
+                <div class="flex items-center gap-1"><img src="https://github.com/byakusen/hanamaru/blob/main/hanamaru2.png?raw=true" class="w-5 h-5 object-contain" alt="はなまる"> 両方OK</div>
+                <div class="flex items-center gap-1"><span class="text-lg font-bold text-indigo-600">当</span> 当番のみ</div>
+                <div class="flex items-center gap-1"><span class="text-lg font-bold text-amber-500">宿</span> 宿題のみ</div>
+                <div class="flex items-center gap-1"><span class="text-sm font-bold text-gray-400">休</span> 欠席</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ボス図鑑モーダル -->
+    <div id="bossBookModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden backdrop-blur-sm no-print" onclick="closeBossBookOutside(event)">
+        <div class="modal-content glass bg-white/95 rounded-2xl w-[90%] max-w-3xl p-6 relative shadow-2xl max-h-[80vh] overflow-y-auto">
+            <button onclick="closeBossBook()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h3 class="text-2xl font-bold text-indigo-900 mb-6 text-center border-b pb-2">📖 討伐図鑑</h3>
+            <div id="bossBookGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- JSで生成 -->
+            </div>
+             <div class="mt-8 text-center text-gray-500 text-sm">
+                クラスみんなで力を合わせて、全てのボスを倒そう！
+            </div>
+        </div>
+    </div>
+
+    <!-- パスワード入力モーダル -->
+    <div id="passwordModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden backdrop-blur-sm no-print" onclick="closePasswordModalOutside(event)">
+        <div class="modal-content glass bg-white rounded-2xl p-6 shadow-2xl w-80 text-center">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">先生パスワード入力</h3>
+            <!-- onkeydownを追加 -->
+            <input type="password" id="teacherPasswordInput" class="w-full p-2 border rounded mb-4 text-center text-xl tracking-widest" placeholder="****" onkeydown="if(event.key==='Enter') checkTeacherPassword()">
+            <div class="flex justify-center gap-2">
+                <button onclick="closePasswordModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
+                <button onclick="checkTeacherPassword()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ボーナスエフェクト表示用コンテナ -->
+    <div id="bonusContainer"></div>
+
+    <!-- 先生モード起動ボタン -->
+    <button onclick="openPasswordModal()" class="fixed right-4 bottom-4 z-50 p-2 text-gray-500 bg-white/80 rounded-full shadow-lg hover:bg-white hover:text-indigo-600 transition backdrop-blur-sm no-print" title="先生用メニュー">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+        </svg>
+    </button>
+
+    <!-- フッター (リセットボタンは設定画面に移動済みのため空) -->
+    <footer class="mt-auto text-center text-white/70 text-xs py-2 flex flex-col items-center gap-1 relative w-full no-print"></footer>
+
+    <!-- ロジック -->
+    <script>
+        // --- 画面スリープ防止 (Wake Lock API) ---
+        let wakeLock = null;
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => { wakeLock = null; });
+                }
+            } catch (e) {
+                // バッテリー残量が少ない場合などは拒否されることがある
+                console.log('Wake Lock取得できず:', e);
+            }
+        }
+        // ページ表示時に自動取得、タブ切替で戻った時にも再取得
+        requestWakeLock();
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') requestWakeLock();
+        });
+
+        // --- 設定・データ ---
+        const MAX_STUDENTS = 40;
+        let teacherPassword = "1234"; 
+        let bossHpPerLevel = 300;
+
+        // HTMLエスケープ関数（XSS対策）
+        function escHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+        }
+
+        // 1学期・2学期用のレベルしきい値(15段階)
+        const LEVEL_THRESHOLDS_12 = {
+            1: 4, 2: 7, 3: 10, 4: 14, 5: 20, 6: 27, 7: 34, 8: 41,
+            9: 50, 10: 60, 11: 70, 12: 80, 13: 95, 14: 115, 15: 135
+        };
+        // 3学期用のレベルしきい値(15段階)
+        const LEVEL_THRESHOLDS_3 = {
+            1: 4, 2: 7, 3: 10, 4: 14, 5: 17, 6: 20, 7: 27, 8: 34,
+            9: 40, 10: 47, 11: 54, 12: 60, 13: 67, 14: 77, 15: 87
+        };
+        // 現在の学期に応じたしきい値テーブルを返す
+        function getLevelThresholds() {
+            return (currentTerm === 'term3') ? LEVEL_THRESHOLDS_3 : LEVEL_THRESHOLDS_12;
+        }
+
+        // ボスモンスター設定 (学期別)
+        // 名前は3学期共通、画像のみ学期ごとに切り替え
+        // 登場順: 各学期 01 → 02 → 03 → ... → 07
+        const BOSS_NAMES = [
+            "宿題スライム",
+            "忘れ物ゴブリン",
+            "おしゃべりウルフ",
+            "居眠りベア",
+            "夜更かしバット",
+            "宿題大魔王",
+            "伝説のドラゴン"
+        ];
+        const BOSS_IMAGES_BY_TERM = {
+            term1: [
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-01.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-02.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-03.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-04.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-05.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-06.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/1-07.png?raw=true"
+            ],
+            term2: [
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-01.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-02.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-03.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-04.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-05.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-06.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/2-07.png?raw=true"
+            ],
+            term3: [
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-01.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-02.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-03.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-04.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-05.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-06.png?raw=true",
+                "https://github.com/byakusen/gghr.touban_monster/blob/main/3-07.png?raw=true"
+            ]
+        };
+        // 現学期のボス7体(name, icon)を返す
+        function getCurrentBosses() {
+            const images = BOSS_IMAGES_BY_TERM[currentTerm] || BOSS_IMAGES_BY_TERM.term1;
+            return BOSS_NAMES.map((name, i) => ({
+                name: name,
+                icon: images[i]
+            }));
+        }
+
+        // 画像アセット
+        // カテゴリ別・レベル別の画像URL集
+        // ※ 各レベルに複数枚あるカテゴリは、iconSeed (1日1回切替) によりランダムに表示されます
+        const CATEGORY_ASSETS = {
+            // クラスパーフェクト時に全員一時的に表示されるレアアイコン
+            rare: [
+                "https://placehold.co/200x200/FFD700/000?text=RARE+1",
+                "https://placehold.co/200x200/FFD700/000?text=RARE+2",
+                "https://placehold.co/200x200/FFD700/000?text=RARE+3",
+                "https://placehold.co/200x200/FFD700/000?text=RARE+4",
+                "https://placehold.co/200x200/FFD700/000?text=RARE+5"
+            ],
+            rpg_boy: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/01.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/02.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_boy/15-5.png?raw=true"] },
+            rpg_girl: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/01.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/02.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/RPG_girl/15-5.png?raw=true"] },
+            animal: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/01.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/02-3.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/animal/15-5.png?raw=true"] },
+            vehicle: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/01-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/01-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/01-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/01-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/01-5.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/02-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/02-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/02-5.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/vehicle/15-5.png?raw=true"] },
+            job_boy: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/01-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/01-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/01-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/01-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/01-5.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/02-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/02-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/02-5.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_boy/15-5.png?raw=true"] },
+            job_girl: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/01-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/01-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/01-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/01-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/01-5.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/02-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/02-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/02-5.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/work_girl/15-5.png?raw=true"] },
+            idol_girl: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/01-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/01-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/01-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/01-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/01-5.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/02-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/02-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/02-5.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/idol/15-5.png?raw=true"] },
+            ruler_boy: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/01-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/01-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/01-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/01-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/01-5.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/02-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/02-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/02-5.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/success/15-5.png?raw=true"] },
+            plant: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/01.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/02.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/03.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/04-2.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/plant/15-5.png?raw=true"] },
+            sweets: { 1:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/01-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/01-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/01-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/01-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/01-5.png?raw=true"], 2:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/02-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/02-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/02-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/02-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/02-5.png?raw=true"], 3:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/03-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/03-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/03-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/03-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/03-5.png?raw=true"], 4:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/04-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/04-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/04-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/04-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/04-5.png?raw=true"], 5:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/05-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/05-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/05-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/05-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/05-5.png?raw=true"], 6:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/06-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/06-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/06-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/06-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/06-5.png?raw=true"], 7:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/07-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/07-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/07-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/07-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/07-5.png?raw=true"], 8:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/08-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/08-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/08-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/08-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/08-5.png?raw=true"], 9:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/09-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/09-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/09-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/09-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/09-5.png?raw=true"], 10:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/10-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/10-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/10-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/10-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/10-5.png?raw=true"], 11:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/11-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/11-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/11-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/11-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/11-5.png?raw=true"], 12:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/12-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/12-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/12-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/12-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/12-5.png?raw=true"], 13:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/13-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/13-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/13-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/13-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/13-5.png?raw=true"], 14:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/14-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/14-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/14-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/14-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/14-5.png?raw=true"], 15:["https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/15-1.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/15-2.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/15-3.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/15-4.png?raw=true", "https://github.com/byakusen/aaaa.touban_sougou_gazou/blob/main/sweets/15-5.png?raw=true"] }
+        };
+
+        // 「選択」のドロップダウン用ラベル定義
+        const CATEGORY_LABELS = [
+            { value: 'rpg_boy',   label: 'RPG(男) ⚔️' },
+            { value: 'rpg_girl',  label: 'RPG(女) 🧝‍♀️' },
+            { value: 'animal',    label: '動物 🐾' },
+            { value: 'vehicle',   label: '乗り物 🚗' },
+            { value: 'job_boy',   label: 'お仕事(男) 👨‍💼' },
+            { value: 'job_girl',  label: 'お仕事(女) 👩‍💼' },
+            { value: 'idol_girl', label: 'アイドル(女) 🎤' },
+            { value: 'ruler_boy', label: '天下人(男) 👑' },
+            { value: 'plant',     label: '植物 🌱' },
+            { value: 'sweets',    label: 'スイーツ 🍰' }
+        ];
+
+        // 称号設定
+        const ACHIEVEMENT_CONFIG = [
+            { id: '3day_streak', name: '三日月の誓い', desc: '3日連続達成！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/01%20mikadukinotikai.png?raw=true', condition: { type: 'streak', val: 3 } },
+            { id: 'week_streak', name: 'ウィークリー・ヒーロー', desc: '1週間連続達成！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/02%20weeklyhero.png?raw=true', condition: { type: 'streak', val: 7 } },
+            { id: 'month_streak', name: '不屈のアイアンマン', desc: '1ヶ月連続達成！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/03%20hukutunoaianman.png?raw=true', condition: { type: 'streak', val: 30 } },
+            { id: 'perfect_term', name: '伝説の皆勤賞', desc: '学期を通してパーフェクト！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/04%20densetunokaikinsho.png?raw=true', condition: { type: 'streak', val: 100 } },
+            { id: 'pt_50', name: 'ブロンズ・バッジ', desc: '累計 50ポイント', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/05%20buronzubajji.png?raw=true', condition: { type: 'totalPt', val: 50 } },
+            { id: 'pt_150', name: 'シルバー・バッジ', desc: '累計 150ポイント', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/06%20siruba-bajji.png?raw=true', condition: { type: 'totalPt', val: 150 } },
+            { id: 'pt_300', name: 'ゴールド・バッジ', desc: '累計 300ポイント', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/07%20goldbajji.png?raw=true', condition: { type: 'totalPt', val: 300 } },
+            { id: 'pt_500', name: 'プラチナ・レジェンド', desc: '累計 500ポイント', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/08%20puratinarejendo.png?raw=true', condition: { type: 'totalPt', val: 500 } },
+            { id: 'homework_master', name: '宿題マスター', desc: '宿題提出率が高い！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/09%20shukudaimasutar.png?raw=true', condition: { type: 'manual' } },
+            { id: 'job_leader', name: 'お仕事リーダー', desc: '当番活動率が高い！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/10%20osigotori-dar.png?raw=true', condition: { type: 'manual' } },
+            { id: 'dual_wielder', name: '二刀流の達人', desc: '宿題と当番のバランスが良い！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/11%20nitouryuunotatujin.png?raw=true', condition: { type: 'manual' } },
+            { id: 'lucky7', name: 'ラッキーセブン', desc: '現在のポイントが77', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/12%20rakki-sebun.png?raw=true', condition: { type: 'currentPt', val: 77 } },
+            { id: 'kiriban', name: 'キリ番ゲッター', desc: '累計ポイントがキリの良い数字', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/13%20kiribangettar.png?raw=true', condition: { type: 'modPt', val: 100 } },
+            { id: 'phoenix', name: '復活のフェニックス', desc: '久しぶりに復帰！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/14%20hukkatunofenix.png?raw=true', condition: { type: 'manual' } },
+            { id: 'guardian', name: 'クラスの守護神', desc: 'ボスにとどめを刺した！', icon: 'https://github.com/byakusen/elgeoge.touban_stanpu/blob/main/15%20classnoshugosin.png?raw=true', condition: { type: 'manual' } }
+        ];
+
+        // 状態管理
+        let currentDate = new Date();
+        let activityData = {};
+        let studentList = [];
+        let classGameData = { defeatedBosses: [] }; // 追加: ゲーム全体データ
+        let isTeacherMode = false;
+        let pendingTab = null;
+        let currentTerm = 'term1'; // 'term1' | 'term2' | 'term3'
+
+        let calendarYear = new Date().getFullYear();
+        let calendarMonth = new Date().getMonth();
+        let currentCalendarStudentId = null;
+
+        // --- 初期化 ---
+        window.onload = () => {
+            loadAllData();
+            initSettingsTable();
+            renderCheckView();
+        };
+
+        // --- データ操作 ---
+        // 学期別 localStorageキー
+        function getActivityKey() { return 'classActivityData_' + currentTerm; }
+        function getGameKey()     { return 'classGameData_'     + currentTerm; }
+
+        function loadAllData() {
+            const storedPass = localStorage.getItem('classTeacherPassword');
+            if (storedPass) {
+                // "b64:" プレフィックス付き = Base64エンコード済み、なし = 旧形式の平文
+                if (storedPass.startsWith('b64:')) {
+                    try { teacherPassword = atob(storedPass.slice(4)); } catch(e) { teacherPassword = storedPass.slice(4); }
+                } else {
+                    // 旧形式（平文）→ そのまま使い、エンコード形式で保存し直す
+                    teacherPassword = storedPass;
+                    localStorage.setItem('classTeacherPassword', 'b64:' + btoa(storedPass));
+                }
+            }
+            
+            const storedHp = localStorage.getItem('classBossHpPerLevel');
+            if (storedHp) bossHpPerLevel = parseInt(storedHp, 10);
+            document.getElementById('bossHpInput').value = bossHpPerLevel;
+
+            // 現在の学期を読み込み
+            const storedTerm = localStorage.getItem('classCurrentTerm');
+            if (storedTerm === 'term1' || storedTerm === 'term2' || storedTerm === 'term3') {
+                currentTerm = storedTerm;
+            }
+
+            // 旧データ(学期未分離)を term1 にマイグレ(初回のみ)
+            const legacyAct = localStorage.getItem('classActivityData');
+            if (legacyAct && !localStorage.getItem('classActivityData_term1')) {
+                localStorage.setItem('classActivityData_term1', legacyAct);
+            }
+            const legacyGame = localStorage.getItem('classGameData');
+            if (legacyGame && !localStorage.getItem('classGameData_term1')) {
+                localStorage.setItem('classGameData_term1', legacyGame);
+            }
+
+            // 現学期の activityData をロード
+            loadTermSpecificData();
+
+            const listStored = localStorage.getItem('classStudentList');
+            let listParsed = false;
+            if (listStored) {
+                try {
+                    studentList = JSON.parse(listStored);
+                    if (Array.isArray(studentList)) {
+                        listParsed = true;
+                        let needsSave = false;
+                        studentList.forEach(s => {
+                            if (s.iconSeed === undefined) { s.iconSeed = s.id; needsSave = true; }
+                            if (s.lastSeededDate === undefined) { s.lastSeededDate = ""; needsSave = true; }
+                            // gender → category 移行(旧データの自動変換)
+                            if (s.category === undefined) {
+                                if (s.gender === 'girl')      s.category = 'rpg_girl';
+                                else                          s.category = 'rpg_boy';
+                                needsSave = true;
+                            }
+                            if (s.achievements === undefined) { s.achievements = []; needsSave = true; }
+                        });
+                        if (needsSave) saveStudentList();
+                    }
+                } catch(e) {
+                    console.error('studentListの読み込みに失敗:', e);
+                }
+            }
+            if (!listParsed) {
+                studentList = Array.from({ length: MAX_STUDENTS }, (_, i) => ({
+                    id: i + 1,
+                    name: i < 3 ? `児童${String.fromCharCode(65 + i)}` : "", 
+                    role: i < 3 ? "係" : "",
+                    category: 'rpg_boy',
+                    iconSeed: i + 1,
+                    lastSeededDate: "",
+                    achievements: [] // 追加
+                }));
+                saveStudentList();
+            }
+        }
+
+        // 現学期の activityData / classGameData を読み込む
+        function loadTermSpecificData() {
+            const actStored = localStorage.getItem(getActivityKey());
+            if (actStored) {
+                try { activityData = JSON.parse(actStored); } catch(e) {
+                    console.error('activityDataの読み込みに失敗:', e);
+                    activityData = {};
+                }
+            } else {
+                activityData = {};
+            }
+
+            const gameStored = localStorage.getItem(getGameKey());
+            if (gameStored) {
+                try { classGameData = JSON.parse(gameStored); } catch(e) {
+                    console.error('classGameDataの読み込みに失敗:', e);
+                    classGameData = { defeatedBosses: [] };
+                }
+            } else {
+                classGameData = { defeatedBosses: [] };
+            }
+        }
+
+        // 学期切替
+        function changeTerm(newTerm) {
+            if (newTerm !== 'term1' && newTerm !== 'term2' && newTerm !== 'term3') return;
+            if (newTerm === currentTerm) return;
+            currentTerm = newTerm;
+            localStorage.setItem('classCurrentTerm', currentTerm);
+            loadTermSpecificData();
+            // 画面再描画
+            initSettingsTable();
+            renderCheckView();
+        }
+
+        function saveActivityData() {
+            localStorage.setItem(getActivityKey(), JSON.stringify(activityData));
+        }
+
+        function saveStudentList() {
+            localStorage.setItem('classStudentList', JSON.stringify(studentList));
+        }
+        
+        function saveGameData() { // 追加
+            localStorage.setItem(getGameKey(), JSON.stringify(classGameData));
+        }
+
+        function saveNewPassword() {
+            const input = document.getElementById('newPasswordInput');
+            const newPass = input.value;
+            if (newPass && newPass.length > 0) {
+                teacherPassword = newPass;
+                localStorage.setItem('classTeacherPassword', 'b64:' + btoa(newPass));
+                alert('パスワードを変更しました。');
+                input.value = "";
+            } else {
+                showWarningEffect("パスワードを入力してください");
+            }
+        }
+        
+        function saveBossHp() {
+            const input = document.getElementById('bossHpInput');
+            const val = parseInt(input.value, 10);
+            if (!isNaN(val) && val > 0) {
+                bossHpPerLevel = val;
+                localStorage.setItem('classBossHpPerLevel', val);
+                renderCheckView();
+            }
+        }
+        
+        // 追加: データのバックアップと復元
+        function downloadBackup() {
+            // 全学期のデータを集約
+            const terms = ['term1', 'term2', 'term3'];
+            const termActivityData = {};
+            const termGameData = {};
+            terms.forEach(t => {
+                const a = localStorage.getItem('classActivityData_' + t);
+                const g = localStorage.getItem('classGameData_' + t);
+                termActivityData[t] = a ? JSON.parse(a) : {};
+                termGameData[t]     = g ? JSON.parse(g) : { defeatedBosses: [] };
+            });
+            // 現学期の最新状態も反映(未保存ぶんがあれば)
+            termActivityData[currentTerm] = activityData;
+            termGameData[currentTerm]     = classGameData;
+
+            const backupData = {
+                termActivityData,
+                termGameData,
+                studentList,
+                bossHpPerLevel,
+                currentTerm,
+                version: 2
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "class_activity_backup_" + new Date().toISOString().slice(0,10) + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function loadBackup(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    // 新形式(v2: 学期別) または 旧形式(v1) の両方をサポート
+                    const isV2 = data.termActivityData && data.studentList;
+                    const isV1 = data.activityData && data.studentList;
+                    if (isV2 || isV1) {
+                        if(confirm("現在のデータを上書きして復元しますか？この操作は取り消せません。")) {
+                            studentList = data.studentList;
+                            if (data.bossHpPerLevel) {
+                                bossHpPerLevel = data.bossHpPerLevel;
+                                localStorage.setItem('classBossHpPerLevel', bossHpPerLevel);
+                            }
+                            if (isV2) {
+                                // 全学期分を書き戻し
+                                ['term1','term2','term3'].forEach(t => {
+                                    if (data.termActivityData[t]) {
+                                        localStorage.setItem('classActivityData_' + t, JSON.stringify(data.termActivityData[t]));
+                                    }
+                                    if (data.termGameData && data.termGameData[t]) {
+                                        localStorage.setItem('classGameData_' + t, JSON.stringify(data.termGameData[t]));
+                                    }
+                                });
+                                if (data.currentTerm) {
+                                    currentTerm = data.currentTerm;
+                                    localStorage.setItem('classCurrentTerm', currentTerm);
+                                }
+                            } else {
+                                // 旧形式は term1 として復元
+                                localStorage.setItem('classActivityData_term1', JSON.stringify(data.activityData));
+                                if (data.classGameData) {
+                                    localStorage.setItem('classGameData_term1', JSON.stringify(data.classGameData));
+                                }
+                                currentTerm = 'term1';
+                                localStorage.setItem('classCurrentTerm', currentTerm);
+                            }
+                            saveStudentList();
+                            location.reload();
+                        }
+                    } else {
+                        alert("無効なバックアップファイルです。");
+                    }
+                } catch (error) {
+                    alert("ファイルの読み込みに失敗しました。");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function printSheet() {
+            window.print();
+        }
+
+        function getDateKey(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // ============================================================
+        // 日本の祝日計算 (国民の祝日に関する法律に基づく)
+        // ・固定日の祝日
+        // ・ハッピーマンデー制度(第N月曜日)
+        // ・春分の日・秋分の日(天文計算式、2099年まで誤差なし)
+        // ・振替休日(祝日が日曜の場合、翌平日が休日)
+        // ・法律改正があった場合は、必要に応じて追記してください
+        // ============================================================
+        function getNthMondayOfMonth(year, month, nth) {
+            // month は 1-12
+            const first = new Date(year, month - 1, 1);
+            const firstMonday = 1 + ((8 - first.getDay()) % 7);
+            const day = firstMonday + (nth - 1) * 7;
+            return new Date(year, month - 1, day);
+        }
+        function getVernalEquinox(year) {
+            // 春分の日 (1980-2099年で誤差なし)
+            return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+        }
+        function getAutumnalEquinox(year) {
+            // 秋分の日 (1980-2099年で誤差なし)
+            return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+        }
+        function getJapaneseHolidaysOfYear(year) {
+            // その年の祝日(YYYY-MM-DD)の Set を返す
+            const dates = [];
+            const push = (m, d) => dates.push(`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+            const pushDate = (date) => push(date.getMonth() + 1, date.getDate());
+
+            // 固定日
+            push(1, 1);   // 元日
+            push(2, 11);  // 建国記念の日
+            if (year >= 2020) push(2, 23); // 天皇誕生日 (2020〜)
+            push(4, 29);  // 昭和の日
+            push(5, 3);   // 憲法記念日
+            push(5, 4);   // みどりの日
+            push(5, 5);   // こどもの日
+            push(11, 3);  // 文化の日
+            push(11, 23); // 勤労感謝の日
+
+            // ハッピーマンデー
+            pushDate(getNthMondayOfMonth(year, 1, 2));  // 成人の日 (1月第2月曜)
+            pushDate(getNthMondayOfMonth(year, 7, 3));  // 海の日   (7月第3月曜)
+            pushDate(getNthMondayOfMonth(year, 9, 3));  // 敬老の日 (9月第3月曜)
+            pushDate(getNthMondayOfMonth(year, 10, 2)); // スポーツの日 (10月第2月曜)
+            if (year >= 2016) {
+                // 山の日 (8月11日。2016年新設)
+                push(8, 11);
+            }
+
+            // 春分・秋分
+            push(3, getVernalEquinox(year));
+            push(9, getAutumnalEquinox(year));
+
+            // 国民の休日(敬老の日と秋分の日の間が1日空いた場合、その日も休日)
+            const keiroDate = getNthMondayOfMonth(year, 9, 3);
+            const shubunDay = getAutumnalEquinox(year);
+            if (shubunDay - keiroDate.getDate() === 2) {
+                push(9, keiroDate.getDate() + 1);
+            }
+
+            // 振替休日:祝日が日曜なら、その後の最初の平日が休日
+            const set = new Set(dates);
+            const extras = [];
+            for (const ds of dates) {
+                const dt = new Date(ds + 'T00:00:00');
+                if (dt.getDay() === 0) {
+                    let next = new Date(dt);
+                    next.setDate(next.getDate() + 1);
+                    // 既に祝日になっている日はスキップ(次の平日まで進む)
+                    while (set.has(getDateKey(next))) {
+                        next.setDate(next.getDate() + 1);
+                    }
+                    extras.push(getDateKey(next));
+                }
+            }
+            extras.forEach(d => set.add(d));
+            return set;
+        }
+        // 祝日キャッシュ(年単位)
+        const _holidayCache = {};
+        function isJapaneseHoliday(date) {
+            const year = date.getFullYear();
+            if (!_holidayCache[year]) {
+                _holidayCache[year] = getJapaneseHolidaysOfYear(year);
+            }
+            return _holidayCache[year].has(getDateKey(date));
+        }
+        // 土日または祝日なら true
+        function isAutoHolidayCandidate(date) {
+            const dow = date.getDay();
+            if (dow === 0 || dow === 6) return true; // 日曜・土曜
+            return isJapaneseHoliday(date);
+        }
+        // ============================================================
+
+        // --- ロジック ---
+        function calculateLevel(points) {
+            const thresholds = getLevelThresholds();
+            const levels = Object.keys(thresholds).map(Number).sort((a, b) => b - a);
+            for (let lvl of levels) {
+                if (points >= thresholds[lvl]) return lvl;
+            }
+            return 0; 
+        }
+
+        function getClassStats() {
+            let totalClassPoints = 0;
+            let totalClassLevel = 0;
+            const activeStudentIds = studentList.filter(s => s.name && s.name.trim() !== "").map(s => s.id);
+            
+            activeStudentIds.forEach(id => {
+                const student = studentList.find(s => s.id === id);
+                if (student) {
+                    const stats = getStudentStats(student);
+                    totalClassPoints += stats.totalPoints;
+                    totalClassLevel += stats.level;
+                }
+            });
+            
+            const sortedDates = Object.keys(activityData).sort();
+            const activeStudentCount = activeStudentIds.length;
+            
+            sortedDates.forEach(dateKey => {
+                let isPerfect = false;
+                if (activeStudentCount > 0) {
+                    // 出席者が1人以上いて、全員が達成or欠席の場合のみパーフェクト
+                    let presentCount = 0;
+                    isPerfect = activeStudentIds.every(id => {
+                        const d = activityData[dateKey]?.[id];
+                        if (d && d.absent) return true; 
+                        presentCount++;
+                        return d && d.toban && d.shukudai;
+                    });
+                    if (presentCount === 0) isPerfect = false;
+                }
+                if (isPerfect && activeStudentCount > 0) {
+                    totalClassPoints += activeStudentCount;
+                }
+            });
+
+            return { totalClassPoints, totalClassLevel };
+        }
+
+        // クラスパーフェクト判定のキャッシュ（renderCheckViewで事前計算）
+        let _cachedClassPerfect = false;
+
+        function getStudentStats(student) {
+            let totalPoints = 0;
+            const sortedDates = Object.keys(activityData).sort();
+            let currentStreak = 0;
+
+            sortedDates.forEach(dateKey => {
+                const dayRecord = activityData[dateKey][student.id];
+                if (!dayRecord) return; 
+
+                // 欠席日はポイントもストリークも加算しない
+                if (dayRecord.absent) return;
+
+                if (dayRecord.toban) totalPoints += 1;
+                if (dayRecord.shukudai) totalPoints += 1;
+
+                if (dayRecord.toban && dayRecord.shukudai) {
+                    currentStreak++;
+                    if (currentStreak % 7 === 0) {
+                        totalPoints += 2; 
+                        currentStreak = 0; 
+                    }
+                } else {
+                    currentStreak = 0;
+                }
+            });
+
+            const level = calculateLevel(totalPoints);
+            let selectedIcon = "";
+            let bgClass = "bg-gray-100"; 
+            let isRare = false;
+
+            if (level > 0) {
+                // category(新)を優先、なければ gender(旧)から変換
+                let category = student.category;
+                if (!category) {
+                    category = (student.gender === 'girl') ? 'rpg_girl' : 'rpg_boy';
+                }
+                let assets = (CATEGORY_ASSETS[category] && CATEGORY_ASSETS[category][level])
+                            || (CATEGORY_ASSETS[category] && CATEGORY_ASSETS[category][1])
+                            || CATEGORY_ASSETS.rpg_boy[1];
+                
+                if (_cachedClassPerfect) {
+                    assets = CATEGORY_ASSETS.rare;
+                    isRare = true;
+                }
+                
+                const iconCount = assets.length;
+                const seed = student.iconSeed || student.id;
+                const iconIndex = seed % iconCount;
+                selectedIcon = assets[iconIndex];
+
+                const colors = ["bg-green-100", "bg-blue-100", "bg-yellow-100", "bg-red-100", "bg-purple-100"];
+                const colorIndex = (level - 1) % colors.length;
+                bgClass = colors[colorIndex];
+                
+                if (isRare) {
+                    bgClass += " rare-effect";
+                }
+            } else {
+                selectedIcon = ""; 
+                bgClass = "locked";
+            }
+
+            return { totalPoints, level, icon: selectedIcon, bg: bgClass };
+        }
+
+        // --- 称号判定ロジック (追加) ---
+        function checkAchievements(studentId) {
+            const student = studentList.find(s => s.id === studentId);
+            if (!student) return;
+            if (!student.achievements) student.achievements = [];
+
+            const stats = getStudentStats(student); // totalPoints計算済み
+            const currentPt = stats.totalPoints;
+            
+            // Streak計算
+            const sortedDates = Object.keys(activityData).sort();
+            let streak = 0;
+            let maxStreak = 0;
+            sortedDates.forEach(dateKey => {
+                const d = activityData[dateKey][studentId];
+                if (d && !d.absent) {
+                    if (d.toban && d.shukudai) {
+                        streak++;
+                        if (streak > maxStreak) maxStreak = streak;
+                    } else {
+                        streak = 0;
+                    }
+                }
+            });
+
+            // 条件チェック
+            let newAchievements = [];
+            ACHIEVEMENT_CONFIG.forEach(ach => {
+                // 既に持っていたらスキップ
+                if (student.achievements.includes(ach.id)) return;
+
+                let attained = false;
+                if (ach.condition.type === 'streak' && maxStreak >= ach.condition.val) attained = true;
+                if (ach.condition.type === 'totalPt' && currentPt >= ach.condition.val) attained = true;
+                if (ach.condition.type === 'currentPt' && currentPt === ach.condition.val) attained = true;
+                if (ach.condition.type === 'modPt' && currentPt > 0 && currentPt % ach.condition.val === 0) attained = true;
+                
+                if (attained) {
+                    student.achievements.push(ach.id);
+                    newAchievements.push(ach);
+                }
+            });
+
+            if (newAchievements.length > 0) {
+                saveStudentList();
+                newAchievements.forEach(ach => {
+                    showBonusEffect(`🏆 称号獲得！「${ach.name}」`);
+                });
+                playSound('correct');
+            }
+        }
+
+        // --- 並び替え機能 (追加) ---
+        function moveStudent(index, direction) {
+            if (direction === -1 && index > 0) {
+                [studentList[index], studentList[index - 1]] = [studentList[index - 1], studentList[index]];
+            } else if (direction === 1 && index < studentList.length - 1) {
+                [studentList[index], studentList[index + 1]] = [studentList[index + 1], studentList[index]];
+            }
+            saveStudentList();
+            initSettingsTable(); // 再描画
+        }
+
+        // --- UI切り替え ---
+        function switchTab(tabName, force = false) {
+            if (tabName === 'settings' && !isTeacherMode && !force) {
+                pendingTab = 'settings';
+                openPasswordModal();
+                return;
+            }
+
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            if (tabName === 'check') {
+                document.getElementById('view-check').classList.remove('hidden');
+                document.getElementById('view-settings').classList.add('hidden');
+                renderCheckView();
+            } else {
+                document.getElementById('view-check').classList.add('hidden');
+                document.getElementById('view-settings').classList.remove('hidden');
+                initSettingsTable(); // 最新のポイント数を反映
+            }
+        }
+
+        // --- 設定画面 ---
+        function initSettingsTable() {
+            // 学期セレクトを現在値に同期
+            const termSel = document.getElementById('termSelect');
+            if (termSel) termSel.value = currentTerm;
+
+            const tbody = document.getElementById('settingsTableBody');
+            tbody.innerHTML = '';
+
+            // 「選択」ドロップダウンのHTMLを組み立てるヘルパー
+            const buildCategoryOptions = (selected) => {
+                return CATEGORY_LABELS.map(c =>
+                    `<option value="${c.value}" ${selected === c.value ? 'selected' : ''}>${escHtml(c.label)}</option>`
+                ).join('');
+            };
+
+            for (let i = 0; i < MAX_STUDENTS; i++) {
+                // 安全策(category 未設定の旧データにも対応)
+                if (!studentList[i]) studentList[i] = { id: i + 1, name: "", role: "", category: "rpg_boy", iconSeed: i + 1, lastSeededDate: "", achievements: [] };
+                const student = studentList[i];
+                if (!student.category) {
+                    student.category = (student.gender === 'girl') ? 'rpg_girl' : 'rpg_boy';
+                }
+
+                // 現学期のポイント数を計算
+                const stats = getStudentStats(student);
+                const pointsDisplay = (student.name && student.name.trim() !== "")
+                    ? `<span class="font-bold text-indigo-700">${stats.totalPoints}</span><span class="text-xs text-gray-500 ml-1">P</span>`
+                    : `<span class="text-gray-300">—</span>`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-center p-1">
+                        <button onclick="moveStudent(${i}, -1)" class="text-gray-500 hover:text-blue-600">⬆</button>
+                        <button onclick="moveStudent(${i}, 1)" class="text-gray-500 hover:text-blue-600">⬇</button>
+                    </td>
+                    <td class="text-center font-bold text-gray-500 bg-gray-50 p-1">${student.id}</td>
+                    <td class="p-1">
+                        <input type="text" placeholder="名前を入力" value="${escHtml(student.name)}" 
+                               onchange="updateStudent(${i}, 'name', this.value)" class="w-full">
+                    </td>
+                    <td class="p-1">
+                        <select onchange="updateStudent(${i}, 'category', this.value)" class="cursor-pointer w-full">
+                            ${buildCategoryOptions(student.category)}
+                        </select>
+                    </td>
+                    <td class="p-1">
+                        <input type="text" placeholder="係名" value="${escHtml(student.role || '')}" 
+                               onchange="updateStudent(${i}, 'role', this.value)" class="w-full">
+                    </td>
+                    <td class="text-center p-1">${pointsDisplay}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function updateStudent(index, field, value) {
+            studentList[index][field] = value;
+            saveStudentList();
+            // 選択(category)を変えたらカード見た目に即反映 / 名前変更も反映
+            renderCheckView();
+        }
+
+        // --- チェック画面操作 ---
+        function changeDate(days) {
+            currentDate.setDate(currentDate.getDate() + days);
+            renderCheckView();
+        }
+
+        function toggleAbsent(studentId) {
+            const dateKey = getDateKey(currentDate);
+            if (!activityData[dateKey]) activityData[dateKey] = {};
+            if (!activityData[dateKey][studentId]) activityData[dateKey][studentId] = { toban: false, shukudai: false, absent: false };
+
+            const currentVal = activityData[dateKey][studentId].absent;
+            activityData[dateKey][studentId].absent = !currentVal;
+            if (!currentVal) {
+                activityData[dateKey][studentId].toban = false;
+                activityData[dateKey][studentId].shukudai = false;
+            }
+            // 手動操作フラグ(以降この日は自動一括休を効かせない)
+            markManualOverride(dateKey);
+            saveActivityData();
+            renderCheckView();
+        }
+
+        // 土日祝で「まだ手動操作されていない日」なら、自動で全員「一括休」にする
+        function applyAutoHolidayIfNeeded(dateKey) {
+            if (!isAutoHolidayCandidate(currentDate)) return; // 平日は何もしない
+
+            // この日付に手動操作フラグが立っていれば、自動を効かせない
+            const meta = activityData[dateKey]?._meta;
+            if (meta && meta.manualOverride === true) return;
+
+            const activeStudents = studentList.filter(s => s.name && s.name.trim() !== "");
+            if (activeStudents.length === 0) return;
+
+            // 既に全員 absent ならスキップ(無駄な書き込みと再保存を避ける)
+            const allAlreadyAbsent = activeStudents.every(s => activityData[dateKey]?.[s.id]?.absent === true);
+            if (allAlreadyAbsent) return;
+
+            // 全員を absent=true に
+            if (!activityData[dateKey]) activityData[dateKey] = {};
+            activeStudents.forEach(s => {
+                if (!activityData[dateKey][s.id]) {
+                    activityData[dateKey][s.id] = { toban: false, shukudai: false, absent: false };
+                }
+                activityData[dateKey][s.id].absent = true;
+                activityData[dateKey][s.id].toban = false;
+                activityData[dateKey][s.id].shukudai = false;
+            });
+            // 自動処理なので manualOverride は立てない
+            saveActivityData();
+        }
+
+        // 日付の手動操作フラグを立てる(以降この日は自動一括休を効かせない)
+        function markManualOverride(dateKey) {
+            if (!activityData[dateKey]) activityData[dateKey] = {};
+            if (!activityData[dateKey]._meta) activityData[dateKey]._meta = {};
+            activityData[dateKey]._meta.manualOverride = true;
+        }
+
+        // 「前回操作日」から targetDate の前日までを遡ってチェックし、
+        // 土日祝の日(かつ手動操作されていない日)を自動で全員休にする
+        // → 月曜の朝に更新を押したら、間の土日も自動で休扱いになる
+        function backfillAutoHolidaysUpTo(targetDate) {
+            const activeStudents = studentList.filter(s => s.name && s.name.trim() !== "");
+            if (activeStudents.length === 0) return;
+
+            // 既存データから最新の日付を見つける(=前回操作日とみなす)
+            const existingDates = Object.keys(activityData).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort();
+            if (existingDates.length === 0) return; // データなしなら何もしない
+
+            const targetKey = getDateKey(targetDate);
+            const lastKey = existingDates[existingDates.length - 1];
+            if (lastKey >= targetKey) return; // 既に今日以降のデータがあるなら何もしない
+
+            // セーフティ: 巨大ループ防止のため、遡る範囲を最大31日に制限
+            const MAX_DAYS = 31;
+            const startDate = new Date(targetDate);
+            startDate.setDate(startDate.getDate() - MAX_DAYS);
+
+            // 「前回操作日の翌日」または「31日前」のうち、新しい方からスタート
+            const lastDate = new Date(lastKey + "T00:00:00");
+            const beginDate = lastDate > startDate ? new Date(lastDate) : startDate;
+            beginDate.setDate(beginDate.getDate() + 1); // 翌日から
+
+            let touched = false;
+            const cursor = new Date(beginDate);
+            while (getDateKey(cursor) < targetKey) {
+                if (isAutoHolidayCandidate(cursor)) {
+                    const dKey = getDateKey(cursor);
+                    const meta = activityData[dKey]?._meta;
+                    // 手動操作済みならスキップ
+                    if (!(meta && meta.manualOverride === true)) {
+                        // 既に全員 absent ならスキップ
+                        const allAbsent = activeStudents.every(s => activityData[dKey]?.[s.id]?.absent === true);
+                        if (!allAbsent) {
+                            if (!activityData[dKey]) activityData[dKey] = {};
+                            activeStudents.forEach(s => {
+                                if (!activityData[dKey][s.id]) {
+                                    activityData[dKey][s.id] = { toban: false, shukudai: false, absent: false };
+                                }
+                                activityData[dKey][s.id].absent = true;
+                                activityData[dKey][s.id].toban = false;
+                                activityData[dKey][s.id].shukudai = false;
+                            });
+                            touched = true;
+                        }
+                    }
+                }
+                cursor.setDate(cursor.getDate() + 1);
+            }
+            if (touched) saveActivityData();
+        }
+
+        function toggleAllAbsent() {
+            const dateKey = getDateKey(currentDate);
+            if (!activityData[dateKey]) activityData[dateKey] = {};
+            const activeStudents = studentList.filter(s => s.name && s.name.trim() !== "");
+            const isAllAbsent = activeStudents.every(student => activityData[dateKey]?.[student.id]?.absent === true);
+            const newAbsentState = !isAllAbsent; 
+
+            activeStudents.forEach(student => {
+                if (!activityData[dateKey][student.id]) {
+                    activityData[dateKey][student.id] = { toban: false, shukudai: false, absent: false };
+                }
+                activityData[dateKey][student.id].absent = newAbsentState;
+                if (newAbsentState) {
+                    activityData[dateKey][student.id].toban = false;
+                    activityData[dateKey][student.id].shukudai = false;
+                }
+            });
+            // 手動操作フラグを立てる(以降自動一括休を効かせない)
+            markManualOverride(dateKey);
+            saveActivityData();
+            renderCheckView();
+        }
+
+        function toggleTask(studentId, taskType) {
+            const dateKey = getDateKey(currentDate);
+            if (!activityData[dateKey]) activityData[dateKey] = {};
+            if (!activityData[dateKey][studentId]) activityData[dateKey][studentId] = { toban: false, shukudai: false, absent: false };
+
+            if (activityData[dateKey][studentId].absent) {
+                showWarningEffect("欠席扱いです。「休」ボタンを押して解除してください。");
+                return;
+            }
+
+            // 手動操作フラグ(以降この日は自動一括休を効かせない)
+            markManualOverride(dateKey);
+
+            const currentVal = activityData[dateKey][studentId][taskType];
+            
+            // ボス討伐判定用: データ更新前の状態を記録
+            const prevStats = getClassStats();
+            
+            activityData[dateKey][studentId][taskType] = !currentVal;
+
+            if (!currentVal) {
+                playSound('correct');
+                const newData = activityData[dateKey][studentId];
+                
+                // ボスダメージ演出
+                
+                // ダメージ演出
+                const bossImage = document.getElementById('bossImage');
+                if(bossImage) {
+                    bossImage.classList.remove('boss-damage');
+                    void bossImage.offsetWidth; 
+                    bossImage.classList.add('boss-damage');
+                    const container = document.getElementById('bossArea');
+                    const dmg = document.createElement('div');
+                    dmg.className = 'damage-popup';
+                    dmg.innerText = "-1";
+                    dmg.style.left = (50 + (Math.random()*20 - 10)) + "%";
+                    container.appendChild(dmg);
+                    setTimeout(() => dmg.remove(), 1000);
+                }
+
+                if (newData.toban && newData.shukudai) {
+                     triggerConfetti();
+                     
+                     // 個人画像抽選
+                     const studentIndex = studentList.findIndex(s => s.id === studentId);
+                     if (studentIndex !== -1) {
+                         const student = studentList[studentIndex];
+                         if (student.lastSeededDate !== dateKey) {
+                             student.iconSeed = Math.floor(Math.random() * 10000);
+                             student.lastSeededDate = dateKey; 
+                             saveStudentList();
+                         }
+                     }
+                     
+                     // クラスパーフェクトボーナス
+                     const activeStudents = studentList.filter(s => s.name && s.name.trim() !== "");
+                     let presentStudents = 0;
+                     const isClassPerfect = activeStudents.every(s => {
+                        const d = activityData[dateKey]?.[s.id];
+                        if (d && d.absent) return true;
+                        presentStudents++;
+                        return d && d.toban && d.shukudai;
+                     });
+                     
+                     if (isClassPerfect && presentStudents > 0) {
+                         showBonusEffect(`🎉 全員達成！ 追加ダメージ ${activeStudents.length}pt!! 🎉`);
+                     }
+
+                     checkBonusEffect(studentId);
+                     checkAchievements(studentId); // 称号チェック
+                }
+
+                // ボス討伐判定 (ステージ変化を比較して判定)
+                const prevBossStage = bossHpPerLevel > 0 ? Math.floor(prevStats.totalClassPoints / bossHpPerLevel) : 0;
+                setTimeout(() => {
+                    const newStats = getClassStats();
+                    const newBossStage = bossHpPerLevel > 0 ? Math.floor(newStats.totalClassPoints / bossHpPerLevel) : 0;
+                    // ステージが進んだ = ボスを倒した
+                    if (newBossStage > prevBossStage && newStats.totalClassPoints > 0) {
+                         showBonusEffect(`⚔️ ボス討伐！「クラスの守護神」称号チャンス！`);
+
+                         // まず全員からguardian称号を剥奪（1人だけに与えるため）
+                         studentList.forEach(s => {
+                             if (s.achievements) {
+                                 s.achievements = s.achievements.filter(a => a !== 'guardian');
+                             }
+                         });
+
+                         // とどめを刺した子に付与
+                         const student = studentList.find(s => s.id === studentId);
+                         if (student) {
+                             if (!student.achievements) student.achievements = [];
+                             student.achievements.push('guardian');
+                             showBonusEffect(`🐉 ${escHtml(student.name)}がとどめを刺した！`);
+                         }
+                         saveStudentList();
+                         
+                         // 図鑑登録 (倒したボスのステージで判定)
+                         const currentBosses = getCurrentBosses();
+                         const defeatedBossIndex = (newBossStage - 1) % currentBosses.length;
+                         const boss = currentBosses[defeatedBossIndex];
+                         
+                         const defeatedRecord = {
+                             name: boss.name,
+                             icon: boss.icon,
+                             date: getDateKey(currentDate),
+                             hitter: studentList.find(s => s.id === studentId)?.name || "名無し"
+                         };
+                         classGameData.defeatedBosses.push(defeatedRecord);
+                         saveGameData();
+                         renderCheckView();
+                    }
+                }, 500);
+
+            } else {
+                playSound('wrong');
+                // チェックを外してボスが復活した場合、guardian称号を全員から剥奪
+                const afterStats = getClassStats();
+                const afterBossStage = bossHpPerLevel > 0 ? Math.floor(afterStats.totalClassPoints / bossHpPerLevel) : 0;
+                const beforeBossStage = bossHpPerLevel > 0 ? Math.floor(prevStats.totalClassPoints / bossHpPerLevel) : 0;
+                if (afterBossStage < beforeBossStage) {
+                    studentList.forEach(s => {
+                        if (s.achievements) {
+                            s.achievements = s.achievements.filter(a => a !== 'guardian');
+                        }
+                    });
+                    saveStudentList();
+                    // 図鑑から最後の討伐記録も削除（復活したので）
+                    if (classGameData.defeatedBosses.length > 0) {
+                        classGameData.defeatedBosses.pop();
+                        saveGameData();
+                    }
+                }
+            }
+            saveActivityData();
+            renderCheckView();
+        }
+
+        // --- 先生モード ---
+        function openPasswordModal() {
+            document.getElementById('teacherPasswordInput').value = "";
+            document.getElementById('passwordModal').classList.remove('hidden');
+            document.getElementById('teacherPasswordInput').focus();
+        }
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.add('hidden');
+            pendingTab = null;
+        }
+        function closePasswordModalOutside(event) {
+            if (event.target.id === 'passwordModal') closePasswordModal();
+        }
+        function checkTeacherPassword() {
+            const input = document.getElementById('teacherPasswordInput').value;
+            if (input === teacherPassword) {
+                isTeacherMode = true;
+                document.getElementById('passwordModal').classList.add('hidden');
+                updateTeacherModeUI();
+                if (pendingTab === 'settings') {
+                    switchTab('settings', true);
+                    showBonusEffect("先生モードになりました");
+                } else {
+                    renderCheckView(); 
+                    showBonusEffect("先生モードになりました");
+                }
+                pendingTab = null;
+            } else {
+                closePasswordModal();
+                pendingTab = null;
+                showWarningEffect("さわってはいけません！");
+            }
+        }
+        function exitTeacherMode() {
+            isTeacherMode = false;
+            updateTeacherModeUI();
+            if (!document.getElementById('view-settings').classList.contains('hidden')) {
+                switchTab('check');
+            } else {
+                renderCheckView();
+            }
+        }
+        function updateTeacherModeUI() {
+            const bar = document.getElementById('teacherModeBar');
+            const nav = document.getElementById('mainNav');
+            if (isTeacherMode) {
+                bar.classList.remove('hidden');
+                nav.style.marginTop = "40px"; 
+            } else {
+                bar.classList.add('hidden');
+                nav.style.marginTop = "0";
+            }
+        }
+        function toggleTeacherStamp(studentId) {
+            if (!isTeacherMode) return;
+            const dateKey = getDateKey(currentDate);
+            if (!activityData[dateKey]) activityData[dateKey] = {};
+            if (!activityData[dateKey][studentId]) activityData[dateKey][studentId] = { toban: false, shukudai: false, absent: false };
+            const currentVal = !!activityData[dateKey][studentId].teacherStamp;
+            activityData[dateKey][studentId].teacherStamp = !currentVal;
+            if (!currentVal) playSound('correct');
+            saveActivityData();
+            renderCheckView();
+        }
+
+        // --- ボーナス・カレンダー・リセット ---
+        function checkBonusEffect(studentId) {
+            const sortedDates = Object.keys(activityData).sort();
+            let currentStreak = 0;
+            let bonusTriggered = false;
+            let streakCountDisplay = 0;
+
+            sortedDates.forEach(dateKey => {
+                const dayRecord = activityData[dateKey][studentId];
+                if (!dayRecord) return;
+                if (dayRecord.absent) {
+                    // skip
+                } else if (dayRecord.toban && dayRecord.shukudai) {
+                    currentStreak++;
+                    if (dateKey === getDateKey(currentDate)) {
+                        streakCountDisplay = currentStreak;
+                        if (currentStreak % 7 === 0) bonusTriggered = true;
+                    }
+                    if (currentStreak % 7 === 0) currentStreak = 0; 
+                } else {
+                    currentStreak = 0;
+                }
+            });
+
+            if (bonusTriggered) {
+                showBonusEffect("🎉 1週間連続達成！ +2pt GET! 🎉");
+                playSound('correct');
+            } else if (streakCountDisplay > 0 && streakCountDisplay % 3 === 0) {
+                showBonusEffect(`✨ ${streakCountDisplay}日連続達成！ ✨`);
+            }
+        }
+        function showBonusEffect(text) {
+            const container = document.getElementById('bonusContainer');
+            const el = document.createElement('div');
+            el.className = 'bonus-overlay';
+            el.textContent = text;
+            container.appendChild(el);
+            setTimeout(() => { el.remove(); }, 2500);
+        }
+        function showWarningEffect(text) {
+            const container = document.getElementById('bonusContainer');
+            const el = document.createElement('div');
+            el.className = 'warning-overlay';
+            el.textContent = text;
+            container.appendChild(el);
+            setTimeout(() => { el.remove(); }, 3000);
+        }
+        function resetAllData() {
+            if(confirm('本当にリセットしてもいいですか？\n全ての記録と名簿が消去されます。')) {
+                // 旧キー(マイグレ前)
+                localStorage.removeItem('classActivityData');
+                localStorage.removeItem('classGameData');
+                // 学期別キー
+                ['term1','term2','term3'].forEach(t => {
+                    localStorage.removeItem('classActivityData_' + t);
+                    localStorage.removeItem('classGameData_' + t);
+                });
+                localStorage.removeItem('classStudentList');
+                localStorage.removeItem('classTeacherPassword');
+                localStorage.removeItem('classBossHpPerLevel');
+                localStorage.removeItem('classCurrentTerm');
+                location.reload();
+            }
+        }
+
+        // --- カレンダー & 称号 ---
+        function openCalendar(studentId) {
+            currentCalendarStudentId = studentId;
+            calendarYear = currentDate.getFullYear();
+            calendarMonth = currentDate.getMonth();
+            const student = studentList.find(s => s.id === studentId);
+            document.getElementById('calStudentName').textContent = `${student ? student.name : ''}さんの記録`;
+            
+            // 称号リスト表示
+            const achContainer = document.getElementById('achievementIcons');
+            achContainer.innerHTML = '';
+            const achList = document.getElementById('achievementList');
+            
+            if (student && student.achievements && student.achievements.length > 0) {
+                achList.classList.remove('hidden');
+                student.achievements.forEach(achId => {
+                    const conf = ACHIEVEMENT_CONFIG.find(c => c.id === achId);
+                    if (conf) {
+                        const img = document.createElement('img');
+                        img.src = conf.icon;
+                        img.title = `${conf.name}: ${conf.desc}`;
+                        img.className = "w-10 h-10 object-contain cursor-help hover:scale-125 transition-transform";
+                        achContainer.appendChild(img);
+                    }
+                });
+            } else {
+                achList.classList.add('hidden');
+            }
+
+            document.getElementById('calendarModal').classList.remove('hidden');
+            renderCalendar();
+        }
+        function closeCalendar() { document.getElementById('calendarModal').classList.add('hidden'); }
+        function closeCalendarOutside(event) { if (event.target.id === 'calendarModal') closeCalendar(); }
+        function changeCalendarMonth(offset) {
+            calendarMonth += offset;
+            if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+            else if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+            renderCalendar();
+        }
+        function renderCalendar() {
+            const grid = document.getElementById('calGrid');
+            grid.innerHTML = '';
+            document.getElementById('calDateLabel').textContent = `${calendarYear}年 ${calendarMonth + 1}月`;
+            const firstDay = new Date(calendarYear, calendarMonth, 1);
+            const lastDay = new Date(calendarYear, calendarMonth + 1, 0);
+            for (let i = 0; i < firstDay.getDay(); i++) grid.appendChild(document.createElement('div'));
+            for (let d = 1; d <= lastDay.getDate(); d++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = "calendar-day bg-gray-50 hover:bg-gray-100 transition";
+                const monthStr = String(calendarMonth + 1).padStart(2, '0');
+                const dayStr = String(d).padStart(2, '0');
+                const dateKey = `${calendarYear}-${monthStr}-${dayStr}`;
+                const dayData = activityData[dateKey]?.[currentCalendarStudentId];
+                let mark = "・";
+                let markClass = "text-gray-300";
+                if (dayData) {
+                    if (dayData.absent) { mark = "休"; markClass = "text-gray-400 font-bold"; dayDiv.classList.add("bg-gray-200"); }
+                    else if (dayData.toban && dayData.shukudai) { mark = `<img src="https://github.com/byakusen/hanamaru/blob/main/hanamaru2.png?raw=true" class="w-8 h-8 object-contain">`; markClass = ""; }
+                    else if (dayData.toban) { mark = "当"; markClass = "text-indigo-600 font-bold"; }
+                    else if (dayData.shukudai) { mark = "宿"; markClass = "text-amber-500 font-bold"; }
+                }
+                dayDiv.innerHTML = `<span class="absolute top-1 left-1 text-[10px] text-gray-400">${d}</span><span class="day-mark ${markClass}">${mark}</span>`;
+                grid.appendChild(dayDiv);
+            }
+        }
+
+        // --- ボス図鑑 ---
+        function openBossBook() {
+            document.getElementById('bossBookModal').classList.remove('hidden');
+            const grid = document.getElementById('bossBookGrid');
+            grid.innerHTML = '';
+            
+            if (classGameData.defeatedBosses.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-10">まだ討伐記録がありません</div>';
+                return;
+            }
+
+            // 新しい順に表示
+            classGameData.defeatedBosses.slice().reverse().forEach(record => {
+                const item = document.createElement('div');
+                item.className = "flex items-center gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200";
+                item.innerHTML = `
+                    <img src="${escHtml(record.icon)}" class="w-16 h-16 object-contain">
+                    <div>
+                        <div class="font-bold text-gray-800">${escHtml(record.name)}</div>
+                        <div class="text-xs text-gray-500">${escHtml(record.date)} 討伐</div>
+                        <div class="text-xs text-indigo-600 font-bold mt-1">MVP: ${escHtml(record.hitter)}</div>
+                    </div>
+                `;
+                grid.appendChild(item);
+            });
+        }
+        function closeBossBook() { document.getElementById('bossBookModal').classList.add('hidden'); }
+        function closeBossBookOutside(e) { if (e.target.id === 'bossBookModal') closeBossBook(); }
+
+        // --- レンダリング ---
+        function renderCheckView() {
+            const dateKey = getDateKey(currentDate);
+            document.getElementById('displayDate').textContent = `${currentDate.getFullYear()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}/${String(currentDate.getDate()).padStart(2, '0')}`;
+
+            // 「前回操作日〜今日の前日」までの土日祝を、まとめて自動で「休」にする
+            // → 月曜朝に更新を押すと、間の土日も自動で休扱いになる(連続記録のため)
+            backfillAutoHolidaysUpTo(currentDate);
+
+            // 土日祝の自動「一括休」処理
+            // 条件: 土日祝の日 かつ その日付がまだ「手動操作」されていない場合のみ、自動で全員休にする
+            // 「一括休」ボタンの押下 や 個別チェックの操作で manualOverride=true となり、以降は自動を効かせない
+            applyAutoHolidayIfNeeded(dateKey);
+
+            renderBossBattle();
+            const container = document.getElementById('gridContainer');
+            container.innerHTML = '';
+            const activeStudents = studentList.filter(s => s.name && s.name.trim() !== "");
+            const count = activeStudents.length;
+
+            if (count === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-12 glass rounded-xl"><p class="text-xl font-bold text-gray-600 mb-2">生徒が登録されていません</p><button onclick="switchTab('settings')" class="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-full shadow-lg">設定画面へ</button></div>`;
+                return;
+            }
+
+            // 全員休ボタン状態
+            let isAllAbsent = activeStudents.length > 0 && activeStudents.every(s => activityData[dateKey]?.[s.id]?.absent === true);
+            const btnAllAbsent = document.getElementById('btnAllAbsent');
+            if (btnAllAbsent) {
+                btnAllAbsent.className = isAllAbsent ? "ml-2 text-xs px-3 py-1 rounded-full bg-gray-600 text-white font-bold shadow-inner" : "ml-2 text-xs px-3 py-1 rounded-full border border-gray-400 text-gray-500 bg-white font-bold";
+                btnAllAbsent.textContent = isAllAbsent ? "休日設定中" : "一括休";
+            }
+
+            // クラスパーフェクト判定を事前キャッシュ（getStudentStats内で使用）
+            // 出席者が1人以上いて、全員が達成or欠席の場合のみパーフェクト
+            let _presentCount = 0;
+            _cachedClassPerfect = activeStudents.length > 0 && activeStudents.every(s => {
+                const d = activityData[dateKey]?.[s.id];
+                if (d && d.absent) return true;
+                _presentCount++;
+                return d && d.toban && d.shukudai;
+            });
+            if (_presentCount === 0) _cachedClassPerfect = false;
+
+            // レイアウト
+            let layoutClass = "";
+            let gridClass = "grid gap-3 ";
+            if (count <= 8) gridClass += "grid-cols-2 md:grid-cols-4";
+            else if (count <= 20) { layoutClass = "layout-normal"; gridClass += "grid-cols-3 md:grid-cols-5"; }
+            else if (count <= 32) { layoutClass = "layout-compact"; gridClass += "grid-cols-4 md:grid-cols-6"; }
+            else { layoutClass = "layout-tiny"; gridClass += "grid-cols-4 md:grid-cols-8"; }
+            container.className = `w-full max-w-[98%] mb-8 ${gridClass} ${layoutClass}`;
+
+            activeStudents.forEach(student => {
+                const dayRecord = activityData[dateKey]?.[student.id] || { toban: false, shukudai: false, absent: false };
+                const isCompletedToday = dayRecord.toban && dayRecord.shukudai;
+                const stats = getStudentStats(student);
+                const card = document.createElement('div');
+                card.className = "card glass rounded-xl flex flex-col items-center justify-between relative bg-white";
+                if (dayRecord.absent) card.classList.add("absent");
+                
+                const roleLen = student.role ? student.role.length : 0;
+                let roleFontSize = roleLen >= 7 ? "0.55rem" : (roleLen >= 5 ? "0.6rem" : "0.7rem");
+                const roleBadge = student.role ? `<div class="card-role bg-indigo-50 text-indigo-800 px-1.5 py-0.5 rounded-full whitespace-nowrap font-bold border border-indigo-100 flex-shrink-0" style="font-size: ${roleFontSize}">${escHtml(student.role)}</div>` : ``;
+
+                const nameLen = student.name.length;
+                let nameFontSize = student.role ? (nameLen >= 7 ? "0.65rem" : (nameLen >= 5 ? "0.8rem" : (nameLen >= 4 ? "0.9rem" : "1rem"))) : (nameLen >= 9 ? "0.7rem" : (nameLen >= 7 ? "0.85rem" : (nameLen >= 5 ? "1rem" : "1rem")));
+
+                let iconContent = stats.icon ? (stats.icon.startsWith('http') ? `<div class="w-full h-full" style="background-image: url('${stats.icon}'); background-size: contain; background-repeat: no-repeat; background-position: center;"></div>` : stats.icon) : `<div class="text-3xl text-gray-300">🔒</div>`;
+                let stampOverlay = dayRecord.teacherStamp ? `<div class="stamp-overlay"></div>` : "";
+                let teacherBtn = isTeacherMode ? `<button onclick="toggleTeacherStamp(${student.id})" class="absolute top-1 right-1 z-20 bg-white rounded-full p-1 shadow border border-red-200 hover:bg-red-50 text-xs">${dayRecord.teacherStamp ? '消す' : '💮'}</button>` : "";
+
+                // 称号アイコン (最新1つだけ表示)
+                let achievementBadge = "";
+                if (student.achievements && student.achievements.length > 0) {
+                    const lastAchId = student.achievements[student.achievements.length - 1];
+                    const conf = ACHIEVEMENT_CONFIG.find(c => c.id === lastAchId);
+                    if (conf) {
+                        achievementBadge = `<div class="absolute z-20 drop-shadow-lg pointer-events-none" style="left: 4%; top: 38%; width: 30%; aspect-ratio: 1 / 1; transform: translateY(-50%);" title="最新称号: ${conf.name}"><img src="${conf.icon}" class="w-full h-full object-cover rounded-xl"></div>`;
+                    }
+                }
+
+                card.innerHTML = `
+                    ${teacherBtn}
+                    ${achievementBadge}
+                    <div class="flex flex-row items-center justify-center w-full mb-1 gap-1 overflow-hidden px-0.5 h-8">
+                        <div class="card-name font-bold text-gray-800 leading-tight text-center whitespace-nowrap min-w-0" style="font-size: ${nameFontSize}">${escHtml(student.name)}</div>
+                        ${roleBadge}
+                    </div>
+                    <div class="img-container card-icon-box rounded-2xl flex items-center justify-center mb-2 mt-1 ${stats.bg} ${isCompletedToday ? 'completed floating' : ''} cursor-pointer hover:opacity-80 transition-opacity relative" onclick="openCalendar(${student.id})">
+                        ${iconContent}
+                        ${stampOverlay}
+                    </div>
+                    <div class="flex gap-1 w-full mt-auto items-center">
+                        <button onclick="toggleTask(${student.id}, 'toban')" class="card-btn flex-1 rounded-md font-bold shadow-sm btn-check ${dayRecord.toban ? 'bg-indigo-600 text-white ring-2 ring-indigo-300' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}">当番</button>
+                        <button onclick="toggleTask(${student.id}, 'shukudai')" class="card-btn flex-1 rounded-md font-bold shadow-sm btn-check ${dayRecord.shukudai ? 'bg-amber-500 text-white ring-2 ring-amber-300' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}">宿題</button>
+                        <button onclick="toggleAbsent(${student.id})" class="card-btn w-8 rounded-md font-bold shadow-sm btn-check ${dayRecord.absent ? 'bg-gray-500 text-white ring-2 ring-gray-400' : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-50'}" title="欠席">休</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // --- ボス表示 ---
+        function renderBossBattle() {
+            const stats = getClassStats();
+            const totalPt = stats.totalClassPoints;
+            const totalLv = stats.totalClassLevel;
+            document.getElementById('displayClassLevel').textContent = totalLv;
+            document.getElementById('nextClassLevelTarget').textContent = Math.ceil((totalLv + 1) / 100) * 100;
+
+            const safeBossHp = bossHpPerLevel > 0 ? bossHpPerLevel : 300;
+            const bossStage = Math.floor(totalPt / safeBossHp); 
+            const currentBosses = getCurrentBosses();
+            const currentBossIndex = bossStage % currentBosses.length;
+            const currentBoss = currentBosses[currentBossIndex];
+            const currentHp = safeBossHp - (totalPt % safeBossHp);
+
+            document.getElementById('bossName').textContent = `${currentBoss.name} (Lv.${bossStage + 1})`;
+            document.getElementById('bossImage').src = currentBoss.icon;
+            document.getElementById('bossHpBar').style.width = `${(currentHp / safeBossHp) * 100}%`;
+            document.getElementById('bossHpText').textContent = `${currentHp}/${safeBossHp}`;
+        }
+
+        // --- 効果音 & 紙吹雪 (復活) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'correct') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                oscillator.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.4);
+            } else {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti !== 'function') return;
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#6366f1', '#f59e0b', '#22c55e']
+            });
+        }
+    </script>
+</body>
+</html>
