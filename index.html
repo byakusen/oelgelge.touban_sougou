@@ -59,12 +59,12 @@
         .layout-compact { --card-padding: 0.65rem; --name-size: 1rem; --role-size: 0.65rem; --icon-box-size: 5rem; --icon-font-size: 2.5rem; --btn-font: 0.75rem; --btn-pad-y: 0.35rem; }
         .layout-tiny { --card-padding: 0.5rem; --name-size: 0.875rem; --role-size: 0.6rem; --icon-box-size: 3.5rem; --icon-font-size: 2rem; --btn-font: 0.7rem; --btn-pad-y: 0.25rem; }
 
-        .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding: var(--card-padding); aspect-ratio: 1 / 1; min-height: 0; overflow: hidden; }
+        .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding: var(--card-padding); aspect-ratio: 1 / 1.1; min-height: 0; overflow: hidden; }
         .card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15); }
         .card.absent { opacity: 0.7; background: rgba(240, 240, 240, 0.9); border: 2px dashed #ccc; }
         .card.absent .card-icon-box { filter: grayscale(100%); opacity: 0.5; }
 
-        .card-icon-box { flex: 1 1 0; min-height: 0; aspect-ratio: 1 / 1; width: auto; height: auto; max-width: 100%; font-size: var(--icon-font-size); background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .card-icon-box { width: 60%; aspect-ratio: 1 / 1; height: auto; max-height: 100%; font-size: var(--icon-font-size); background-size: contain; background-repeat: no-repeat; background-position: center; }
         .card-btn { font-size: var(--btn-font); padding-top: var(--btn-pad-y); padding-bottom: var(--btn-pad-y); }
 
         .img-container { transition: all 0.3s ease; border: 4px solid transparent; }
@@ -1746,7 +1746,7 @@
                         ${iconContent}
                         ${stampOverlay}
                     </div>
-                    <div class="flex gap-1 w-full mt-auto items-center flex-shrink-0">
+                    <div class="flex gap-1 w-full items-center flex-shrink-0">
                         <button onclick="toggleTask(${student.id}, 'toban')" class="card-btn flex-1 rounded-md font-bold shadow-sm btn-check ${dayRecord.toban ? 'bg-indigo-600 text-white ring-2 ring-indigo-300' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}">当番</button>
                         <button onclick="toggleTask(${student.id}, 'shukudai')" class="card-btn flex-1 rounded-md font-bold shadow-sm btn-check ${dayRecord.shukudai ? 'bg-amber-500 text-white ring-2 ring-amber-300' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}">宿題</button>
                         <button onclick="toggleAbsent(${student.id})" class="card-btn w-8 rounded-md font-bold shadow-sm btn-check ${dayRecord.absent ? 'bg-gray-500 text-white ring-2 ring-gray-400' : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-50'}" title="欠席">休</button>
